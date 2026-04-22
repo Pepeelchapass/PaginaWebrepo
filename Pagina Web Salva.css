@@ -1,0 +1,46 @@
+body{
+    background-image: url(./img/BG.jpg);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    max-height: max-content;
+}
+header{
+    justify-content: center;
+    text-align: center;
+}
+header img{
+    padding: 10px;
+}
+#Unidades{
+    width: 35%;
+    float: left;
+    border-right: 2px solid ;
+}
+#Descripcion{
+    float: none;
+    border-right: 2px solid ;
+    width: 40%;
+    height: 2000px;
+}
+#listaUnidades{
+    
+}
+#EA{
+    height: 35px;
+}
+
+.units{
+    margin-top: 40px;
+    border: 2px solid black
+}
+td{
+    border:1px solid black;
+}
+.frances{
+    background-color: aqua;
+}
+button{
+    width: 200px;
+}
+
