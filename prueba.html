@@ -1,13 +1,16 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestión de Facciones Históricas</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
         body {
-            background-image: url('BG.jpg');
+            background-image: url("./img/BG.jpg");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
@@ -102,19 +105,13 @@
         }
 
         .img-header-placeholder {
-            width: 120px;
-            height: 120px;
-            background-color: rgba(255, 255, 255, 0.5);
-            border: 2px dashed #94a3b8;
-            border-radius: 0.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #64748b;
-            font-size: 0.75rem;
         }
     </style>
 </head>
+
 <body class="text-slate-900">
 
     <!-- CABECERA DE LA PÁGINA -->
@@ -122,20 +119,14 @@
         <div class="relative w-full max-w-5xl flex items-center justify-center gap-8 md:gap-16">
             <!-- Espacio para la Primera Imagen -->
             <div class="img-header-placeholder shadow-inner">
-                <span class="text-center p-2">Imagen Izquierda</span>
+                <img src="./img/MT2.png" alt="Muskeys&Tomahawks">
             </div>
 
             <!-- Espacio para la Segunda Imagen -->
             <div class="img-header-placeholder shadow-inner">
-                <span class="text-center p-2">Imagen Derecha</span>
+                <img src="./img/" alt="EasyArmy.jpg">
             </div>
 
-            <!-- Botón de Donar movido a la derecha absoluta del contenedor de la cabecera -->
-            <div class="absolute right-0">
-                <button class="btn-donate">
-                    Donar
-                </button>
-            </div>
         </div>
         <div class="h-[2px] w-full max-w-4xl bg-gradient-to-r from-transparent via-slate-400 to-transparent mt-2"></div>
     </header>
@@ -148,7 +139,7 @@
             
             <div class="glass-panel shadow-md">
                 <label class="text-xs font-bold uppercase text-slate-600 block mb-1">Seleccione Guerra</label>
-                <select id="selectGuerra">
+                <select id="selectGuerra" onchange="actualizarTablaControl()">
                     <option value="FIW">FIW (French & Indian War)</option>
                     <option value="AWI">AWI (American War of Independence)</option>
                     <option value="1812">Guerra de 1812</option>
@@ -163,7 +154,7 @@
                     <option value="Portugeses">Portugueses</option>
                     <option value="Alemanes">Alemanes</option>
                     <option value="Españoles">Españoles</option>
-                    <option value="Austrios">Austríacos</option>
+                    <option value="Austriacos">Austríacos</option>
                     <option value="Rusos">Rusos</option>
                     <option value="Civiles">Civiles</option>
                 </select>
@@ -175,14 +166,14 @@
                         <tr>
                             <th>Unidad</th>
                             <th>Tipo</th>
-                            <th>Nivel</th>
+                            <th>Disciplina</th>
                             <th>Estado</th>
                             <th>Acción</th>
                         </tr>
                     </thead>
                     <tbody id="tablaControlBody">
                         <tr>
-                            <td colspan="5" class="py-8 text-slate-500 italic text-sm">Selecciona una facción para ver unidades</td>
+                            <td colspan="5" class="py-8 text-slate-500 italic text-sm">Selecciona una guerra y una facción para ver unidades</td>
                         </tr>
                     </tbody>
                 </table>
@@ -201,7 +192,8 @@
                 <button onclick="agregarALista()" class="btn-add">
                     Añadir a lista
                 </button>
-                <p id="msgFeedback" class="text-xs font-semibold text-red-600 opacity-0 transition-opacity">Carga una entidad primero</p>
+                <p id="msgFeedback" class="text-xs font-semibold text-red-600 opacity-0 transition-opacity">Carga una unidad primero</p>
+                <p id="msgRestriccion" class="text-xs font-semibold text-red-600 opacity-0 transition-opacity">Solo puedes añadir unidades de una misma facción.</p>
             </div>
         </div>
 
@@ -218,72 +210,570 @@
                     </thead>
                     <tbody id="listaBody"></tbody>
                 </table>
+                <p id="buffoMsg" class="mt-3 text-xs font-semibold text-emerald-700"></p>
+
+                <button onclick="exportarPDF()" 
+                    class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-xs font-bold shadow">
+                    Exportar PDF
+                </button>
+
             </div>
         </div>
 
     </div>
 
     <script>
+        // =========================
+        // BASE DE DATOS DE EJÉRCITOS
+        // =========================
+        const EJERCITOS = {
+            "Napoleonicas": {
+                Franceses: {
+                    "Fusiliers": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {
+                            Desmotivados: "Ganan el rasgo Desanimados.",
+                            Reclutas: "La Disciplina pasa a ser Reclutas.",
+                            Aguerridos: "Ganan el rasgo Veterano.",
+                            Chasseurs: "Reemplaza Orden Cerrado por Ligeros."
+                        },
+                        habilidades: ["Élan ofensivo", "Formación flexible"]
+                    },
+                    "Grenadiers": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "5+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado", "Veterano"],
+                        opciones: {
+                            Carabiniers: "Reemplaza Orden Cerrado por Ligeros."
+                        },
+                        habilidades: ["Choque de élite", "Asalto decidido"]
+                    },
+                    "Voltigeurs": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Hostigadores",
+                        disparo: "5+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Explorador"],
+                        opciones: {
+                            Aguerridos: "Ganan el rasgo Veterano.",
+                            Tiradores: "Ganan el rasgo Tirador experto."
+                        },
+                        habilidades: ["Hostigamiento", "Movimiento ágil"]
+                    },
+                    "Guardia Imperial": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "5+",
+                        agresividad: "5+",
+                        defensa: "4+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado", "Veterano", "Élite"],
+                        opciones: {
+                            ViejaGuardia: "Ganan el rasgo Intrépidos.",
+                            Chasseurs: "Pasa a Infantería Ligera, gana Ligeros.",
+                            Voltigeurs: "Pasa a Infantería Ligera, Hostigadores, Explorador."
+                        },
+                        habilidades: ["Inquebrantables", "Reserva decisiva"]
+                    },
+                    "Cazadores a Caballo": {
+                        tipo: "Caballería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "5+",
+                        defensa: "5+",
+                        equipamiento: ["Sable", "Carabina"],
+                        rasgos: ["Caballería Ligera"],
+                        opciones: {},
+                        habilidades: ["Vanguardia", "Hostigamiento montado"]
+                    },
+                    "Carabiniers": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "5+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Ligeros"],
+                        opciones: {},
+                        habilidades: ["Apoyo cercano"]
+                    }
+                },
+
+                Britanicos: {
+                    "Infantería de Línea": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Fuego disciplinado"]
+                    },
+                    "95th Rifles": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "5+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Carabina de precisión"],
+                        rasgos: ["Explorador", "Tirador experto"],
+                        opciones: {},
+                        habilidades: ["Disparo de precisión", "Cobertura avanzada"]
+                    },
+                    "Dragones Ligeros": {
+                        tipo: "Caballería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "5+",
+                        defensa: "5+",
+                        equipamiento: ["Sable", "Pistola"],
+                        rasgos: ["Caballería Ligera"],
+                        opciones: {},
+                        habilidades: ["Carga rápida"]
+                    }
+                },
+
+                Portugeses: {
+                    "Caçadores": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Explorador"],
+                        opciones: {},
+                        habilidades: ["Fuego de hostigamiento"]
+                    },
+                    "Regimiento de Línea": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Fuego en línea"]
+                    }
+                },
+
+                Rusos: {
+                    "Mosqueteros": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Resistencia férrea"]
+                    },
+                    "Guardia Imperial Rusa": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "5+",
+                        agresividad: "5+",
+                        defensa: "4+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Veterano", "Élite"],
+                        opciones: {},
+                        habilidades: ["Estoicismo ejemplar"]
+                    },
+                    "Cosacos del Don": {
+                        tipo: "Caballería Ligera",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Lanza", "Arma ligera"],
+                        rasgos: ["Caballería Ligera", "Explorador"],
+                        opciones: {},
+                        habilidades: ["Hostigamiento rápido"]
+                    }
+                },
+
+                Prusianos: {
+                    "Landwehr": {
+                        tipo: "Milicia",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "7+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: [],
+                        opciones: {},
+                        habilidades: ["Reservas disciplinadas"]
+                    },
+                    "Jägers": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "5+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Carabina de precisión"],
+                        rasgos: ["Explorador"],
+                        opciones: {},
+                        habilidades: ["Tiro selectivo"]
+                    }
+                },
+
+                Españoles: {
+                    "Guerrilleros": {
+                        tipo: "Irregulares",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Nativos", "Explorador"],
+                        opciones: {},
+                        habilidades: ["Emboscada", "Movilidad local"]
+                    },
+                    "Regimiento de Línea": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Defensa obstinada"]
+                    }
+                },
+
+                Austriacos: {
+                    "Granaderos Húngaros": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "5+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado", "Veterano"],
+                        opciones: {},
+                        habilidades: ["Choque disciplinado"]
+                    },
+                    "Infantería Grenz": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Explorador"],
+                        opciones: {},
+                        habilidades: ["Cobertura de frontera"]
+                    }
+                },
+
+                Alemanes: {
+                    "Húsares de Brunswick": {
+                        tipo: "Caballería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "5+",
+                        defensa: "5+",
+                        equipamiento: ["Sable"],
+                        rasgos: ["Caballería Ligera"],
+                        opciones: {},
+                        habilidades: ["Golpe de flanco"]
+                    }
+                },
+
+                Civiles: {
+                    "Civiles": {
+                        tipo: "Civiles",
+                        disciplina: "Milicianos",
+                        disparo: "8+",
+                        agresividad: "7+",
+                        defensa: "7+",
+                        equipamiento: ["Útiles de agricultura o Trabuco"],
+                        rasgos: ["Auxiliar (Todos)", "Cobardes"],
+                        opciones: {},
+                        habilidades: ["Apoyo improvisado"]
+                    },
+                    "Cantinera": {
+                        tipo: "Civiles",
+                        disciplina: "Curtido",
+                        disparo: "-",
+                        agresividad: "8+",
+                        defensa: "8+",
+                        equipamiento: ["Ninguno"],
+                        rasgos: ["Nativos"],
+                        opciones: {},
+                        habilidades: ["Apoyo moral"]
+                    }
+                }
+            },
+
+            // FIW genérico
+            "FIW": {
+                Franceses: {
+                    "Compagnies Franches": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Explorador"],
+                        opciones: {},
+                        habilidades: ["Hostigamiento en bosque"]
+                    }
+                },
+                Britanicos: {
+                    "Rangers": {
+                        tipo: "Infantería Ligera",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Explorador"],
+                        opciones: {},
+                        habilidades: ["Exploración avanzada"]
+                    }
+                },
+                Civiles: {
+                    "Colonos Armados": {
+                        tipo: "Milicia",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "7+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: [],
+                        opciones: {},
+                        habilidades: ["Defensa local"]
+                    }
+                }
+            },
+
+            // AWI genérico
+            "AWI": {
+                Britanicos: {
+                    "Casacas Rojas": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Fuego en línea"]
+                    }
+                },
+                Alemanes: {
+                    "Hessianos": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Disciplina contratada"]
+                    }
+                },
+                Civiles: {
+                    "Milicia Patriota": {
+                        tipo: "Milicia",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "7+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: [],
+                        opciones: {},
+                        habilidades: ["Defensa del hogar"]
+                    }
+                }
+            },
+
+            // Guerra de 1812 genérico
+            "1812": {
+                Britanicos: {
+                    "Infantería Británica 1812": {
+                        tipo: "Infantería de Línea",
+                        disciplina: "Curtido",
+                        disparo: "6+",
+                        agresividad: "6+",
+                        defensa: "5+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: ["Orden Cerrado"],
+                        opciones: {},
+                        habilidades: ["Fuego disciplinado"]
+                    }
+                },
+                Civiles: {
+                    "Milicia Americana": {
+                        tipo: "Milicia",
+                        disciplina: "Recluta",
+                        disparo: "7+",
+                        agresividad: "7+",
+                        defensa: "6+",
+                        equipamiento: ["Mosquete"],
+                        rasgos: [],
+                        opciones: {},
+                        habilidades: ["Resistencia local"]
+                    }
+                }
+            }
+        };
+
+        // =========================
+        // BUFFOS NACIONALES
+        // =========================
+        const BUFFOS = {
+            "Napoleonicas": {
+                Franceses: { nombre: "Superioridad Táctica", umbral: 3, descripcion: "+1 a chequeos de reacción tras combate cuerpo a cuerpo." },
+                Britanicos: { nombre: "Fuego Continuado", umbral: 3, descripcion: "Eliminar hasta 2 marcadores de Fuego." },
+                Portugeses: { nombre: "Fuego Continuado", umbral: 3, descripcion: "Eliminar hasta 2 marcadores de Fuego (Caçadores)." },
+                Rusos: { nombre: "Estoicismo", umbral: 3, descripcion: "Dados adicionales en chequeos de reacción." },
+                Prusianos: { nombre: "Reservistas", umbral: 3, descripcion: "+1 a todos los dados de Landwehr/Freikorps y un oficial cercano." },
+                Españoles: { nombre: "La Úlcera Española", umbral: 3, descripcion: "+2\" de movimiento a Nativos/Exploradores." },
+                Austriacos: { nombre: "Tácticas Obsoletas", umbral: 3, descripcion: "Acciones extra con unidades grandes; superan Reagrupamiento." },
+                Alemanes: { nombre: "Bajo la sombra de los gigantes", umbral: 2, descripcion: "Doble acción para un tipo de tropa elegido." },
+                Civiles: { nombre: "Pueblo en armas", umbral: 3, descripcion: "Apoyo moral y resistencia inesperada." }
+            },
+            "FIW": {},
+            "AWI": {},
+            "1812": {}
+        };
+
         let entidadActual = null;
         let faccionSeleccionada = "";
-
-        const datosUnidades = {
-            "Franceses": ["Granaderos de la Guardia", "Cazadores a Caballo", "Infantería de Línea", "Voltigeurs"],
-            "Britanicos": ["Casacas Rojas", "95th Rifles", "Guardia Coldstream", "Dragones Ligeros"],
-            "Portugeses": ["Caçadores", "Regimiento de Línea", "Milicia de Oporto"],
-            "Alemanes": ["Landwehr", "Jägers", "Husares de Brunswick"],
-            "Españoles": ["Regimiento Inmemorial", "Guerrilleros", "Granaderos de Fernando VII"],
-            "Austrios": ["Granaderos Húngaros", "Infantería Grenz", "Ulanos"],
-            "Rusos": ["Cosacos del Don", "Guardia Imperial Rusa", "Mosqueteros"],
-            "Civiles": ["Campesinos", "Comerciantes", "Partisanos Locales"]
-        };
+        let guerraSeleccionada = "";
+        let faccionListaActual = null;
 
         function actualizarTablaControl() {
             const faccion = document.getElementById('selectFaccion').value;
             const guerra = document.getElementById('selectGuerra').value;
             const body = document.getElementById('tablaControlBody');
             faccionSeleccionada = faccion;
-            
-            if (!faccion) {
-                body.innerHTML = '<tr><td colspan="5" class="py-8 text-slate-500 italic text-sm">Selecciona una facción</td></tr>';
+            guerraSeleccionada = guerra;
+
+            document.getElementById('msgFeedback').style.opacity = "0";
+            document.getElementById('msgRestriccion').style.opacity = "0";
+
+            if (!guerra || !faccion) {
+                body.innerHTML = '<tr><td colspan="5" class="py-8 text-slate-500 italic text-sm">Selecciona una guerra y una facción</td></tr>';
                 return;
             }
 
-            const unidades = datosUnidades[faccion] || ["Unidad Genérica"];
+            const faccionesGuerra = EJERCITOS[guerra] || {};
+            const unidades = faccionesGuerra[faccion] || null;
+
+            if (!unidades) {
+                body.innerHTML = '<tr><td colspan="5" class="py-8 text-slate-500 italic text-sm">No hay unidades definidas para esta combinación.</td></tr>';
+                return;
+            }
+
             let html = "";
-            
-            unidades.forEach(u => {
+            Object.keys(unidades).forEach(nombre => {
+                const u = unidades[nombre];
                 html += `
                     <tr>
-                        <td class="text-xs font-bold">${u}</td>
-                        <td class="text-[10px]">Tropa</td>
-                        <td class="text-[10px]">Vet</td>
+                        <td class="text-xs font-bold">${nombre}</td>
+                        <td class="text-[10px]">${u.tipo}</td>
+                        <td class="text-[10px]">${u.disciplina}</td>
                         <td class="text-[10px]">OK</td>
-                        <td><button onclick="mostrarDetalles('${u}', '${faccion}', '${guerra}')" class="btn-interact">Cargar</button></td>
+                        <td><button onclick="mostrarDetalles('${nombre.replace(/'/g, "\\'")}')" class="btn-interact">Cargar</button></td>
                     </tr>
                 `;
             });
             body.innerHTML = html;
         }
 
-        function mostrarDetalles(nombre, faccion, guerra) {
-            entidadActual = nombre;
+        function mostrarDetalles(nombre) {
+            if (!guerraSeleccionada || !faccionSeleccionada) return;
+
+            const unidad = EJERCITOS[guerraSeleccionada][faccionSeleccionada][nombre];
+            if (!unidad) return;
+
+            entidadActual = { nombre, faccion: faccionSeleccionada, guerra: guerraSeleccionada };
+
             const contenedor = document.getElementById('vistaContenedor');
             document.getElementById('msgFeedback').style.opacity = "0";
-            
+            document.getElementById('msgRestriccion').style.opacity = "0";
+
+            const equip = unidad.equipamiento && unidad.equipamiento.length
+                ? unidad.equipamiento.join(", ")
+                : "—";
+
+            const rasgos = unidad.rasgos && unidad.rasgos.length
+                ? unidad.rasgos.join(", ")
+                : "—";
+
+            const opciones = unidad.opciones && Object.keys(unidad.opciones).length
+                ? Object.entries(unidad.opciones).map(([k, v]) => `<li><b>${k}:</b> ${v}</li>`).join("")
+                : "<li>Sin opciones especiales.</li>";
+
+            const habilidades = unidad.habilidades && unidad.habilidades.length
+                ? unidad.habilidades
+                : ["Habilidad genérica"];
+
+            let habilidadesHtml = habilidades.map(h => `
+                <label class="flex items-center gap-2 mb-2 cursor-pointer">
+                    <input type="checkbox" class="accent-indigo-600">
+                    <span>${h}</span>
+                </label>
+            `).join("");
+
+            // Añadimos habilidad nacional si existe
+            const buffoNacional = BUFFOS[guerraSeleccionada] && BUFFOS[guerraSeleccionada][faccionSeleccionada];
+            if (buffoNacional) {
+                habilidadesHtml += `
+                    <div class="mt-2 text-[11px] text-emerald-700">
+                        Habilidad nacional disponible: <b>${buffoNacional.nombre}</b> – ${buffoNacional.descripcion}
+                    </div>
+                `;
+            }
+
             const htmlTabla = `
-                <table class="border w-full animate-in fade-in duration-500 rounded-lg overflow-hidden">
+                <table class="border w-full rounded-lg overflow-hidden">
                     <tbody>
                         <tr><th class="text-slate-700 text-left">Nombre</th><td class="font-bold text-indigo-800 text-left">${nombre}</td></tr>
-                        <tr><th class="text-slate-700 text-left">Descripción</th><td class="text-sm text-left">Unidad desplegada en el conflicto ${guerra}.</td></tr>
-                        <tr><th class="text-slate-700 text-left">Facción</th><td class="text-indigo-600 font-semibold italic text-left">${faccion}</td></tr>
-                        <tr><th class="text-slate-700 text-left">Características</th><td class="text-sm text-left"><b>Moral:</b> Alta<br><b>Disciplina:</b> 8<br><b>Equipo:</b> Estándar</td></tr>
+                        <tr><th class="text-slate-700 text-left">Guerra</th><td class="text-sm text-left">${guerraSeleccionada}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Facción</th><td class="text-indigo-600 font-semibold italic text-left">${faccionSeleccionada}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Tipo</th><td class="text-sm text-left">${unidad.tipo}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Disciplina</th><td class="text-sm text-left">${unidad.disciplina}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Disparo</th><td class="text-sm text-left">${unidad.disparo}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Agresividad</th><td class="text-sm text-left">${unidad.agresividad}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Defensa</th><td class="text-sm text-left">${unidad.defensa}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Equipamiento</th><td class="text-sm text-left">${equip}</td></tr>
+                        <tr><th class="text-slate-700 text-left">Rasgos</th><td class="text-sm text-left">${rasgos}</td></tr>
                         <tr>
-                            <th class="text-slate-700 text-left">Habilidades</th>
-                            <td class="text-left text-sm py-4">
-                                <label class="flex items-center gap-2 mb-3 cursor-pointer"><input type="checkbox" class="accent-indigo-600"> Disparo de Precisión</label>
-                                <label class="flex items-center gap-2 mb-3 cursor-pointer"><input type="checkbox" class="accent-indigo-600"> Formación en Cuadro</label>
-                                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="accent-indigo-600"> Carga de Bayoneta</label>
+                            <th class="text-slate-700 text-left align-top">Opciones</th>
+                            <td class="text-left text-sm">
+                                <ul class="list-disc list-inside text-[11px]">
+                                    ${opciones}
+                                </ul>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th class="text-slate-700 text-left align-top">Habilidades</th>
+                            <td class="text-left text-sm py-2">
+                                ${habilidadesHtml}
                             </td>
                         </tr>
                     </tbody>
@@ -296,20 +786,134 @@
                 document.getElementById('msgFeedback').style.opacity = "1";
                 return;
             }
+
             const listaBody = document.getElementById('listaBody');
+            const buffoMsg = document.getElementById('buffoMsg');
+            document.getElementById('msgFeedback').style.opacity = "0";
+            document.getElementById('msgRestriccion').style.opacity = "0";
+
+            // Restricción de facción única
+            if (!faccionListaActual) {
+                faccionListaActual = entidadActual.faccion;
+            } else if (faccionListaActual !== entidadActual.faccion) {
+                document.getElementById('msgRestriccion').style.opacity = "1";
+                return;
+            }
+
             const nuevaFila = document.createElement('tr');
+            nuevaFila.dataset.faccion = entidadActual.faccion;
             nuevaFila.innerHTML = `
-                <td class="font-medium text-left">${entidadActual} (${faccionSeleccionada})</td>
+                <td class="font-medium text-left text-xs">${entidadActual.nombre} (${entidadActual.faccion} – ${entidadActual.guerra})</td>
                 <td><button onclick="borrarFila(this)" class="bg-red-100 text-red-700 hover:bg-red-200 px-3 py-1 rounded-md text-xs font-bold border border-red-200 transition">Borrar</button></td>
             `;
             listaBody.appendChild(nuevaFila);
+
+            actualizarBuffo();
         }
 
         function borrarFila(btn) {
             const fila = btn.closest('tr');
             fila.classList.add('fade-out');
-            setTimeout(() => { fila.remove(); }, 300);
+            setTimeout(() => {
+                fila.remove();
+                const listaBody = document.getElementById('listaBody');
+                if (listaBody.children.length === 0) {
+                    faccionListaActual = null;
+                    document.getElementById('buffoMsg').textContent = "";
+                } else {
+                    actualizarBuffo();
+                }
+            }, 300);
         }
+
+        function actualizarBuffo() {
+            const listaBody = document.getElementById('listaBody');
+            const filas = Array.from(listaBody.querySelectorAll('tr'));
+            const buffoMsg = document.getElementById('buffoMsg');
+
+            if (!faccionListaActual || !guerraSeleccionada) {
+                buffoMsg.textContent = "";
+                return;
+            }
+
+            const cuenta = filas.filter(f => f.dataset.faccion === faccionListaActual).length;
+            const buffoDef = BUFFOS[guerraSeleccionada] && BUFFOS[guerraSeleccionada][faccionListaActual];
+
+            if (buffoDef && cuenta >= buffoDef.umbral) {
+                buffoMsg.textContent = `Has reunido suficientes ${faccionListaActual}. Activan "${buffoDef.nombre}": ${buffoDef.descripcion}`;
+            } else {
+                buffoMsg.textContent = "";
+            }
+        }
+                async function exportarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            const listaBody = document.getElementById("listaBody");
+            const filas = Array.from(listaBody.querySelectorAll("tr"));
+
+            if (filas.length === 0) {
+                alert("La lista está vacía.");
+                return;
+            }
+
+            let y = 10;
+
+            doc.setFontSize(16);
+            doc.text("Lista de Unidades", 10, y);
+            y += 10;
+
+            filas.forEach((fila, index) => {
+                const texto = fila.children[0].innerText;
+                const [nombreCompleto] = texto.split(" (");
+
+                const faccion = fila.dataset.faccion;
+                const guerra = texto.match(/\((.*?) –/)[1];
+                const nombreUnidad = nombreCompleto.trim();
+
+                const unidad = EJERCITOS[guerra][faccion][nombreUnidad];
+
+                doc.setFontSize(12);
+                doc.text(`${index + 1}. ${nombreUnidad} (${faccion})`, 10, y);
+                y += 6;
+
+                doc.setFontSize(10);
+                doc.text(`Tipo: ${unidad.tipo}`, 10, y); y += 5;
+                doc.text(`Disciplina: ${unidad.disciplina}`, 10, y); y += 5;
+                doc.text(`Disparo: ${unidad.disparo}`, 10, y); y += 5;
+                doc.text(`Agresividad: ${unidad.agresividad}`, 10, y); y += 5;
+                doc.text(`Defensa: ${unidad.defensa}`, 10, y); y += 5;
+
+                doc.text(`Equipamiento: ${unidad.equipamiento.join(", ")}`, 10, y); y += 5;
+                doc.text(`Rasgos: ${unidad.rasgos.join(", ")}`, 10, y); y += 5;
+
+                if (unidad.habilidades?.length) {
+                    doc.text(`Habilidades: ${unidad.habilidades.join(", ")}`, 10, y);
+                    y += 5;
+                }
+
+                // Buffo nacional si aplica
+                const buffo = BUFFOS[guerra] && BUFFOS[guerra][faccion];
+                if (buffo) {
+                    doc.setTextColor(0, 100, 0);
+                    doc.text(`Buffo Nacional: ${buffo.nombre} – ${buffo.descripcion}`, 10, y);
+                    doc.setTextColor(0, 0, 0);
+                    y += 7;
+                }
+
+                y += 5;
+
+                // Nueva página si se llena
+                if (y > 270) {
+                    doc.addPage();
+                    y = 10;
+                }
+            });
+
+            doc.save("lista_unidades.pdf");
+        }
+
     </script>
 </body>
 </html>
+```
